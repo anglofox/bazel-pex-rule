@@ -2,10 +2,7 @@ import yaml
 
 class Library:
     def __init__(self):
-        self._one = 11
-
-    def yaml(self):
-        return yaml.load("""
+        self._one = yaml.load("""
             name: Vorlin Laruknuzum
             sex: Male
             class: Priest
