@@ -1,0 +1,1 @@
+test --action_env=PEX_ROOT=.pex
