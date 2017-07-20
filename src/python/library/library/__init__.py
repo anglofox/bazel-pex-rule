@@ -1,23 +1,18 @@
 import yaml
 
+
 class Library:
     def __init__(self):
-        self._one = yaml.load("""
-            name: Vorlin Laruknuzum
-            sex: Male
-            class: Priest
-            title: Acolyte
-            hp: [32, 71]
-            sp: [1, 13]
-            gold: 423
-            inventory:
-                - a Holy Book of Prayers (Words of Wisdom)
-                - an Azure Potion of Cure Light Wounds
-                - a Silver Wand of Wonder
-            """
-        )
+        self._output = yaml.load("""
+            name: Konstantin Itskov
+            company: FINDMINE Inc.
+            title: Co-founder & Chief Technical Officer
+            Values:
+                - Don't put off until tomorrow what you can do today.
+                - Any fool can know, the point is to understand.
+                - If you will it, it is no dream; and if you do not will it, a dream it is and a dream it will stay.
+            """)
 
     @property
-    def one(self):
-        return self._one
-
+    def output(self):
+        return self._output
