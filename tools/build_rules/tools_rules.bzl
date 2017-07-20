@@ -1,15 +1,15 @@
 _PACKAGES = {
     "Linux": struct(
-        url='https://deps.findmine.com/protobuf/protoc-3.1.0-linux-x86_64.zip',
-        sha256='7c98f9e8a3d77e49a072861b7a9b18ffb22c98e37d2a80650264661bfaad5b3a',
+        url='https://deps.findmine.com/protobuf/protoc-3.3.0-linux-x86_64.zip',
+        sha256='feb112bbc11ea4e2f7ef89a359b5e1c04428ba6cfa5ee628c410eccbfe0b64c3',
     ),
     "Darwin": struct(
-        url='https://deps.findmine.com/protobuf/protoc-3.1.0-osx-x86_64.zip',
-        sha256='2cea7b1acb86671362f7aa554a21b907d18de70b15ad1f68e72ad2b50502920e',
+        url='https://deps.findmine.com/protobuf/protoc-3.3.0-osx-x86_64.zip',
+        sha256='d752ba0ea67239e327a48b2f23da0e673928a9ff06ee530319fc62200c0aff89',
     ),
     "Windows": struct(
-        url='https://deps.findmine.com/protobuf/protoc-3.1.0-win32.zip',
-        sha256='e46b3b7c5c99361bbdd1bbda93c67e5cbf2873b7098482d85ff8e587ff596b23',
+        url='https://deps.findmine.com/protobuf/protoc-3.3.0-win32.zip',
+        sha256='19ec3d3853c1181912dc442840b3a76bfe0607ecc67d0854b323fdd1fdd8ab77',
     ),
 }
 
@@ -54,7 +54,7 @@ filegroup(
 
 
 def _proto_tools_impl(ctx):
-    command = ['python3']
+    command = ['python3.6']
     command += ['-c']
     command += ['import platform; print(platform.system(), end="")']
     platform = ctx.execute(command)
@@ -72,7 +72,7 @@ def _pip_tools_impl(ctx):
     bin = ctx.path('bin')
     packages = ctx.path('site-packages')
 
-    command = ['python3', str(getpip)]
+    command = ['python3.6', str(getpip)]
     command += list(ctx.attr.packages)
     command += ['--target', str(packages)]
     command += ['--install-option', '--install-scripts=%s' % bin]
@@ -81,6 +81,7 @@ def _pip_tools_impl(ctx):
 
     if result.return_code != 0:
         print('stderr:', result.stderr)
+        print('try:', ' '.join(command))
 
     ctx.file('%s/BUILD' % bin, _PIP_BIN_BUILD_FILE, False)
     ctx.file('BUILD', _PIP_BUILD_FILE, False)
@@ -106,6 +107,7 @@ def _pex_reqs_impl(ctx):
 
         if result.return_code != 0:
             print('stderr:', result.stderr)
+            print('try:', ' '.join(command))
 
     result = ctx.execute(['ls', '%s' % downloads])
     filenames = result.stdout.strip().split('\n')
@@ -181,9 +183,11 @@ def pip_dependencies():
         name="pip",
         visibility=['//visibility:public'],
         packages=[
-            'pex==1.2.1',
-            'protobuf==3.1.0.post1',
-            'wheel==0.29.0'
+            'pex==1.2.8',
+            'setuptools==33.1.1',
+            'protobuf==3.3.0',
+            'wheel==0.29.0',
+            'requests==2.18.1'
         ]
     )
 

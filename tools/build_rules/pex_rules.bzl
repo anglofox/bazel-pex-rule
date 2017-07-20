@@ -3,7 +3,7 @@ proto_file_types = FileType(['.proto'])
 
 
 def collect_transitive_srcs(ctx):
-    transitive_srcs = set(order="compile")
+    transitive_srcs = depset(order="compile")
     for dep in ctx.attr.deps:
         transitive_srcs += dep.transitive_srcs
     transitive_srcs += python_file_types.filter(ctx.files.srcs)
@@ -11,7 +11,7 @@ def collect_transitive_srcs(ctx):
 
 
 def collect_transitive_gens(ctx):
-    transitive_gens = set(order="compile")
+    transitive_gens = depset(order="compile")
     for dep in ctx.attr.deps:
         transitive_gens += dep.transitive_gens
     transitive_gens += proto_file_types.filter(ctx.files.srcs)
@@ -19,7 +19,7 @@ def collect_transitive_gens(ctx):
 
 
 def collect_transitive_data(ctx):
-    transitive_data = set(order="compile")
+    transitive_data = depset(order="compile")
     for dep in ctx.attr.deps:
         transitive_data += dep.transitive_data
     for datum in ctx.attr.data:
@@ -28,7 +28,7 @@ def collect_transitive_data(ctx):
 
 
 def collect_transitive_reqs(ctx):
-    transitive_reqs = set(order="compile")
+    transitive_reqs = depset(order="compile")
     for dep in ctx.attr.deps:
         transitive_reqs += dep.transitive_reqs
     if ctx.attr.reqs != None:
@@ -38,28 +38,29 @@ def collect_transitive_reqs(ctx):
 
 
 def collect_transitive_deps(ctx):
-    transitive_deps = set(order="compile")
+    transitive_deps = depset(order="compile")
     for dep in ctx.attr.deps:
         transitive_deps += dep.transitive_deps
     return transitive_deps
 
 
 def collect_transitive_builds(ctx):
-    transitive_builds = set(order="compile")
+    transitive_builds = depset(order="compile")
     for dep in ctx.attr.deps:
         transitive_builds += dep.transitive_builds
     return transitive_builds
 
 
 def collect_protobuf_gens(ctx, transitive_gens):
-    proto_gens = set(order="compile")
+    proto_gens = depset(order="compile")
     proto_gens += python_file_types.filter(transitive_gens)
-    for source in proto_file_types.filter(transitive_gens):
+    sources = proto_file_types.filter(transitive_gens)
+    for source in sources:
         localpath = source.path.split('/')
         localpath[-1] = ''.join([source.basename.split('.')[0], '_pb2.py'])
         localpath = localpath[len(ctx.build_file_path.split('/')[:-1]):]
         output = ctx.new_file(ctx.genfiles_dir, '/'.join(localpath))
-        proto_gens += set([output])
+        proto_gens += depset([output])
 
         command = 'external/proto/bin/protoc ' + \
                   '-I=%s ' % source.dirname + \
@@ -68,7 +69,7 @@ def collect_protobuf_gens(ctx, transitive_gens):
 
         ctx.action(
             mnemonic='ProtoCompile',
-            inputs=list(set([source]) + ctx.attr._protoc.files),
+            inputs=list(depset(sources) + ctx.attr._protoc.files),
             command=command,
             outputs=[output],
             env={
@@ -88,10 +89,10 @@ def pex_library_impl(ctx):
     transitive_data = collect_transitive_data(ctx)
     transitive_reqs = collect_transitive_reqs(ctx)
     transitive_deps = collect_transitive_deps(ctx)
-    transitive_deps += set([build_path])
+    transitive_deps += depset([build_path])
 
     return struct(
-        files=set(),
+        files=depset(),
         transitive_srcs=transitive_srcs,
         transitive_gens=transitive_gens,
         transitive_data=transitive_data,
@@ -108,11 +109,13 @@ def pex_library_test_impl(ctx):
     transitive_data = collect_transitive_data(ctx)
     transitive_reqs = collect_transitive_reqs(ctx)
     transitive_deps = collect_transitive_deps(ctx)
-    transitive_deps += set([build_path])
+    transitive_deps += depset([build_path])
 
     bdist_wheel = ctx.new_file(ctx.genfiles_dir, 'bdist_wheel')
-    command = ['cd %s' % build_path]
-    command += ['python3 setup.py --quiet bdist_wheel &> /dev/null']
+    command = ['export PATH=$PATH:`pwd`/external/pip/']
+    command += ['export PYTHONPATH=`pwd`/external/pip/site-packages']
+    command += ['cd %s' % build_path]
+    command += ['python3.6 setup.py --quiet bdist_wheel &> /dev/null']
     command += ['cd - > /dev/null']
     command += ['ls %s/dist > %s' % (build_path, bdist_wheel.path)]
 
@@ -127,16 +130,15 @@ def pex_library_test_impl(ctx):
         outputs=[bdist_wheel],
         env={
             'PATH': '/bin:/usr/bin:/usr/local/bin',
-            'PYTHONPATH': 'external/pip/site-packages',
             'LANG': 'en_US.UTF-8'
         }
     )
 
     transitive_builds = collect_transitive_builds(ctx)
-    transitive_builds += set([bdist_wheel])
+    transitive_builds += depset([bdist_wheel])
 
     return struct(
-        files=set(),
+        files=depset(),
         transitive_srcs=transitive_srcs,
         transitive_gens=transitive_gens,
         transitive_data=transitive_data,
@@ -154,7 +156,7 @@ def pex_binary_impl(ctx):
     transitive_data = collect_transitive_data(ctx)
     transitive_reqs = collect_transitive_reqs(ctx)
     transitive_deps = collect_transitive_deps(ctx)
-    transitive_deps += set([build_path])
+    transitive_deps += depset([build_path])
 
     runfiles = ctx.runfiles(
         collect_default=True,
@@ -166,11 +168,13 @@ def pex_binary_impl(ctx):
     )
 
     command = []
+    command += ['export PATH=$PATH:`pwd`/external/pip/']
+    command += ['export PYTHONPATH=`pwd`/external/pip/site-packages']
     for genfile in transitive_gens:
         dest = genfile.path.replace('%s/' % ctx.genfiles_dir.path, '')
         command += [' '.join(['cp', genfile.path, dest])]
 
-    link_paths = set([file.dirname for file in transitive_reqs])
+    link_paths = depset([file.dirname for file in transitive_reqs])
     manifests = ' '.join(['%s/MANIFEST' % path for path in link_paths])
     command += ['REQS=$(awk "{print}" ORS=" " %s)' % manifests]
 
@@ -185,9 +189,9 @@ def pex_binary_impl(ctx):
         '--no-index'
     ])]
 
-    pip_tools = set(order="compile")
+    pip_tools = depset(order="compile")
     for target in ctx.attr._pip:
-        pip_tools += set([file for file in target.files])
+        pip_tools += depset([file for file in target.files])
 
     ctx.action(
         mnemonic='PexCompile',
@@ -202,13 +206,20 @@ def pex_binary_impl(ctx):
         outputs=[ctx.outputs.executable],
         env={
             'PATH': '/bin:/usr/bin:/usr/local/bin',
-            'PYTHONPATH': 'external/pip/site-packages',
             'LANG': 'en_US.UTF-8',
             'PEX_ROOT': ctx.attr._root
         }
     )
 
-    return struct(files=set([ctx.outputs.executable]), runfiles=runfiles)
+    return struct(
+        files=depset([ctx.outputs.executable]),
+        runfiles=runfiles,
+        transitive_srcs=transitive_srcs,
+        transitive_gens=transitive_gens,
+        transitive_data=transitive_data,
+        transitive_reqs=transitive_reqs,
+        transitive_deps=transitive_deps
+    )
 
 
 def pex_test_impl(ctx):
@@ -219,11 +230,13 @@ def pex_test_impl(ctx):
     transitive_data = collect_transitive_data(ctx)
     transitive_reqs = collect_transitive_reqs(ctx)
     transitive_deps = collect_transitive_deps(ctx)
-    transitive_deps += set([build_path, ctx.attr._tester.label.package])
+    transitive_deps += depset([build_path, ctx.attr._tester.label.package])
 
     bdist_wheel = ctx.new_file(ctx.genfiles_dir, 'bdist_wheel')
-    command = ['cd %s' % build_path]
-    command += ['python3 setup.py --quiet bdist_wheel &> /dev/null']
+    command = ['export PATH=$PATH:`pwd`/external/pip/']
+    command += ['export PYTHONPATH=`pwd`/external/pip/site-packages']
+    command += ['cd %s' % build_path]
+    command += ['python3.6 setup.py --quiet bdist_wheel &> /dev/null']
     command += ['cd - > /dev/null']
     command += ['ls %s/dist > %s' % (build_path, bdist_wheel.path)]
 
@@ -238,13 +251,12 @@ def pex_test_impl(ctx):
         outputs=[bdist_wheel],
         env={
             'PATH': '/bin:/usr/bin:/usr/local/bin',
-            'PYTHONPATH': 'external/pip/site-packages',
             'LANG': 'en_US.UTF-8'
         }
     )
 
     transitive_builds = collect_transitive_builds(ctx)
-    transitive_builds += set([bdist_wheel])
+    transitive_builds += depset([bdist_wheel])
 
     runfiles = ctx.runfiles(
         collect_default=True,
@@ -256,6 +268,8 @@ def pex_test_impl(ctx):
     )
 
     command = []
+    command += ['export PATH=$PATH:`pwd`/external/pip/']
+    command += ['export PYTHONPATH=`pwd`/external/pip/site-packages']
     for genfile in transitive_gens:
         dest = genfile.path.replace('%s/' % ctx.genfiles_dir.path, '')
         command += [' '.join(['cp', genfile.path, dest])]
@@ -264,7 +278,7 @@ def pex_test_impl(ctx):
     for build in transitive_builds:
         command += ['cat %s >> %s' % (build.path, packages)]
 
-    link_paths = set([file.dirname for file in transitive_reqs])
+    link_paths = depset([file.dirname for file in transitive_reqs])
     manifests = ' '.join(['%s/MANIFEST' % path for path in link_paths])
     command += ['REQS=$(awk "{print}" ORS=" " %s)' % manifests]
 
@@ -279,9 +293,9 @@ def pex_test_impl(ctx):
         '--no-index'
     ])]
 
-    pip_tools = set(order="compile")
+    pip_tools = depset(order="compile")
     for target in ctx.attr._pip:
-        pip_tools += set([file for file in target.files])
+        pip_tools += depset([file for file in target.files])
 
     ctx.action(
         mnemonic='PexCompile',
@@ -298,13 +312,21 @@ def pex_test_impl(ctx):
         outputs=[ctx.outputs.executable],
         env={
             'PATH': '/bin:/usr/bin:/usr/local/bin',
-            'PYTHONPATH': 'external/pip/site-packages',
             'LANG': 'en_US.UTF-8',
             'PEX_ROOT': ctx.attr._root
         }
     )
 
-    return struct(files=set([ctx.outputs.executable]), runfiles=runfiles)
+    return struct(
+        files=depset([ctx.outputs.executable]),
+        runfiles=runfiles,
+        transitive_srcs=transitive_srcs,
+        transitive_gens=transitive_gens,
+        transitive_data=transitive_data,
+        transitive_reqs=transitive_reqs,
+        transitive_deps=transitive_deps,
+        transitive_builds=transitive_builds
+    )
 
 
 pex_attrs = {
@@ -345,7 +367,7 @@ pex_build_attrs = {
     '_pip': attr.label_list(
         default=[Label('@pip//:tools'), Label('@pip//bin')]),
     '_root': attr.string(default='.pex'),
-    'interpreter': attr.string(default='python3'),
+    'interpreter': attr.string(default='python3.6'),
     'verbose': attr.bool(default=False)
 }
 
